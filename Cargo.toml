@@ -1,8 +1,11 @@
 [package]
 name = "tree-sitter-smali"
 description = "Smali grammar for tree-sitter"
-version = "1.0.0"
-authors = ["Yotam Nachum <me@yotam.net>", "Amaan Qureshi <amaanq12@gmail.com>"]
+version = "2.0.0"
+authors = [ 
+"android_zero <2049219004@qq.com and msmt8382@gmail.com> <github.com/msmt2018>",
+"Yotam Nachum <me@yotam.net>", 
+"Amaan Qureshi <amaanq12@gmail.com>"]
 license = "MIT"
 readme = "bindings/rust/README.md"
 keywords = ["incremental", "parsing", "smali"]

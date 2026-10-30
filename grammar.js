@@ -1,9 +1,10 @@
 /**
  * @file Smali grammar for tree-sitter
+ * @author android_zero <2049219004@qq.com and msmt8382@gmail.com> <github.com/msmt2018>
  * @author Amaan Qureshi <amaanq12@gmail.com>
  * @author Yotam Nachum <me@yotam.net>
  * @license MIT
- * @see {@link https://github.com/JesusFreke/smali|official implementation}
+ * @see {@link https://github.com/google/smali|official Google/smali implementation}
  * @see {@link https://source.android.com/docs/core/runtime/dalvik-bytecode|official dex bytecode reference}
  */
 
@@ -32,6 +33,7 @@ const access_flags = [
   'annotation',
   'enum',
   'declared-synchronized',
+  'constructor',
 ];
 
 const restriction_flags = [
@@ -44,6 +46,19 @@ const restriction_flags = [
   'greylist-max-r',
   'core-platform-api',
   'test-api',
+];
+
+const verification_errors = [
+  'no-error',
+  'generic-error',
+  'no-such-class',
+  'no-such-field',
+  'no-such-method',
+  'illegal-class-access',
+  'illegal-field-access',
+  'illegal-method-access',
+  'class-change-error',
+  'instantiation-error',
 ];
 
 const primitives = ['V', 'Z', 'B', 'S', 'C', 'I', 'J', 'F', 'D'];
@@ -64,6 +79,8 @@ const opcodes = [
   'move-result-object',
   'move-exception',
   'return-void',
+  'return-void-barrier',
+  'return-void-no-barrier',
   'return',
   'return-wide',
   'return-object',
@@ -318,7 +335,6 @@ const opcodes = [
  * Returns an optional tree-sitter rule that matches rule at least once, with a repeat of `,` + `rule`
  * @param {Rule} rule - tree-sitter rule
  * @param {boolean?} trailing_separator - The trailing separator to use.
- *
  * @return {ChoiceRule}
  */
 function commaSep(rule, trailing_separator = false) {
@@ -330,14 +346,11 @@ function commaSep(rule, trailing_separator = false) {
 }
 
 /**
-* Creates a rule to match one or more of the rules separated by the separator
-*
-* @param {Rule|RegExp} rule
-* @param {Rule|RegExp|string} separator - The separator to use.
-*
-* @return {SeqRule}
-*
-*/
+ * Creates a rule to match one or more of the rules separated by the separator
+ * @param {Rule|RegExp} rule
+ * @param {Rule|RegExp|string} separator
+ * @return {SeqRule}
+ */
 function sep1(rule, separator) {
   return seq(rule, repeat(seq(separator, rule)));
 }
@@ -346,7 +359,9 @@ module.exports = grammar({
   name: 'smali',
 
   conflicts: $ => [
-    [$.field_definition], // smali/src/test/resources/LexerTest/RealSmaliFileTest.smali to understand why
+    [$.field_definition],
+    [$.param_directive],
+    [$.parameter_directive],
   ],
 
   externals: $ => [
@@ -371,15 +386,16 @@ module.exports = grammar({
   word: $ => $.identifier,
 
   rules: {
+    // Google/smali allows top-level directives to appear in arbitrary order
     class_definition: $ => seq(
       $.class_directive,
-      $.super_directive,
-      optional($.source_directive),
-      repeat($.implements_directive),
       repeat(choice(
+        $.super_directive,
+        $.source_directive,
+        $.implements_directive,
         $.annotation_directive,
-        $.method_definition,
         $.field_definition,
+        $.method_definition,
       )),
     ),
 
@@ -390,9 +406,10 @@ module.exports = grammar({
       $.class_identifier,
     ),
     super_directive: $ => seq('.super', $.class_identifier),
-    source_directive: $ => seq('.source', $.string),
+    source_directive: $ => seq('.source', optional($.string)),
     implements_directive: $ => seq('.implements', $.class_identifier),
 
+    // field definition
     field_definition: $ => seq(
       '.field',
       optional($.access_modifiers),
@@ -404,10 +421,10 @@ module.exports = grammar({
       )),
     ),
 
-    // Method
+    // Method definition
     method_definition: $ => seq(
       '.method',
-      optional($._method_access_modifiers),
+      optional($.access_modifiers),
       $.method_signature,
       repeat($.statement),
       '.end method',
@@ -423,14 +440,14 @@ module.exports = grammar({
     ),
     annotation_visibility: _ => choice('system', 'build', 'runtime'),
     annotation_property: $ => seq($.annotation_key, '=', $.annotation_value),
-    annotation_key: _ => /\w+/,
+    annotation_key: $ => choice($.identifier, /\w+/),
     annotation_value: $ => choice(
       $.literal,
       $.body,
       $.list,
       $.enum_reference,
       $.subannotation_directive,
-      $.class_identifier,
+      $.type,
     ),
 
     subannotation_directive: $ => seq(
@@ -440,23 +457,26 @@ module.exports = grammar({
       '.end subannotation',
     ),
 
-    param_directive: $ => prec.right(seq(
+    // Parameter directives according to smaliParser.g:
+    param_directive: $ => seq(
       '.param',
-      $.parameter,
-      optional(choice(
-        seq(repeat($.annotation_directive), '.end param'),
-        seq(optional(','), choice($.literal, alias($.identifier, $.param_identifier))),
+      $.register,
+      optional(seq(optional(','), choice($.string, alias($.identifier, $.param_identifier)))),
+      optional(seq(
+        repeat($.annotation_directive),
+        '.end param',
       )),
-    )),
+    ),
 
-    parameter_directive: $ => prec.right(seq(
+    // Legacy baksmali .parameter directive
+    parameter_directive: $ => seq(
       '.parameter',
-      optional($.literal),
+      optional(choice($.string, alias($.identifier, $.param_identifier))),
       optional(seq(
         repeat($.annotation_directive),
         '.end parameter',
       )),
-    )),
+    ),
 
     // code lines
     statement: $ => choice(
@@ -475,6 +495,7 @@ module.exports = grammar({
     ),
 
     opcode: _ => choice(...opcodes),
+
     value: $ => choice(
       $.type,
       $.list,
@@ -488,6 +509,11 @@ module.exports = grammar({
       $.subannotation_directive,
       $.method_handle,
       $.custom_invoke,
+      $.inline_index,
+      $.vtable_index,
+      $.field_offset,
+      $.verification_error_type,
+      $.identifier,
     ),
 
     // code declarations
@@ -515,7 +541,7 @@ module.exports = grammar({
       '.local',
       $.register,
       optional(seq(
-        ',', choice($.literal, $.identifier),
+        ',', choice($.string, $.identifier, $.null),
         ':', $.type,
         optional(seq(',', $.string)),
       )),
@@ -523,20 +549,25 @@ module.exports = grammar({
     end_local_directive: $ => seq('.end local', $.register),
     restart_local_directive: $ => seq('.restart local', $.register),
     registers_directive: $ => seq('.registers', $.number),
+
     catch_directive: $ => seq(
       '.catch',
-      $.class_identifier,
-      choice(
-        seq('{', $.label, '..', $.label, '}', $.label),
-        seq('{', $.jmp_label, '..', $.jmp_label, '}', $.jmp_label),
-      ),
+      $.type,
+      '{',
+      field('start', choice($.label, $.jmp_label)),
+      '..',
+      field('end', choice($.label, $.jmp_label)),
+      '}',
+      field('handler', choice($.label, $.jmp_label)),
     ),
     catchall_directive: $ => seq(
       '.catchall',
-      choice(
-        seq('{', $.label, '..', $.label, '}', $.label),
-        seq('{', $.jmp_label, '..', $.jmp_label, '}', $.jmp_label),
-      ),
+      '{',
+      field('start', choice($.label, $.jmp_label)),
+      '..',
+      field('end', choice($.label, $.jmp_label)),
+      '}',
+      field('handler', choice($.label, $.jmp_label)),
     ),
     packed_switch_directive: $ => seq(
       '.packed-switch',
@@ -546,33 +577,34 @@ module.exports = grammar({
     ),
     sparse_switch_directive: $ => seq(
       '.sparse-switch',
-      repeat(seq($.number, '->', $.label)),
+      repeat(seq($.number, '->', choice($.label, $.jmp_label))),
       '.end sparse-switch',
     ),
     array_data_directive: $ => seq(
       '.array-data',
       field('element_width', $.number),
-      field('value', repeat($.number)),
+      field('value', repeat($.literal)),
       '.end array-data',
     ),
     prologue_directive: _ => '.prologue',
     epilogue_directive: _ => '.epilogue',
 
-    identifier: _ => /<?[a-zA-Z_$][a-zA-Z0-9_\-$]*>?/,
-    // class_identifier: _ => token(/L[^;]+;/),
+    // Pure terminal token matching Google/smali JFlex specification
+    identifier: _ => token(choice(
+      /<?[a-zA-Z_$\u00a1-\u1fff\u2010-\u2027\u2030-\ud7ff\ue000-\uffef][a-zA-Z0-9_\-$\u00a1-\u1fff\u2010-\u2027\u2030-\ud7ff\ue000-\uffef]*>?/,
+      /`[^`\r\n]+`/,
+    )),
+
     class_identifier: $ => seq(
       alias($.L, 'L'),
-      // repeat1(seq(alias($._class_ident, $.identifier), '/')),
-      // alias($._class_ident, $.identifier),
       sep1(alias($._class_ident, $.identifier), '/'),
       ';',
     ),
 
-    // exclude :[SVIJFBZC]
-    label: _ => prec(-1, token(/:[^SVIJFBZC\s]([^:\sI][\w\d]*)?|:[^:\sI][\w\d]*/)),
-    jmp_label: _ => prec(-1, token(/\w+:/)),
+    label: _ => token(seq(':', /<?[a-zA-Z0-9_\-$]+>?/)),
+    jmp_label: _ => prec(-1, token(/[a-zA-Z0-9_$]+:/)),
 
-    // various "bodies"
+    // various bodies
     body: $ => choice(
       $._field_body,
       $._full_field_body,
@@ -601,10 +633,11 @@ module.exports = grammar({
       ')',
       $.type,
     ),
+
     method_handle: $ => seq(
-      $.opcode,
+      choice($.opcode, $.identifier),
       '@',
-      choice($._full_field_body, $.full_method_signature),
+      choice($._field_body, $._full_field_body, $.method_signature, $.full_method_signature),
     ),
     _full_field_body: $ => seq(
       choice($.class_identifier, $.array_type),
@@ -616,14 +649,20 @@ module.exports = grammar({
       '->',
       $.method_signature,
     ),
+
+    // Call site invocation (invoke-custom), strictly keeping arguments disjoint from parameter type lists
     custom_invoke: $ => seq(
       $.identifier,
-      '(', commaSep(choice($.body, $.method_handle, $.string)), ')',
+      '(', commaSep(choice($.literal, $.body, $.method_handle)), ')',
       '@',
-      $.class_identifier,
-      '->',
-      $.method_signature,
+      choice($._field_body, $._full_field_body, $.method_signature, $.full_method_signature),
     ),
+
+    // ODEX & verification tokens
+    inline_index: _ => /inline@0x[0-9a-fA-F]+/,
+    vtable_index: _ => /vtable@0x[0-9a-fA-F]+/,
+    field_offset: _ => /field@0x[0-9a-fA-F]+/,
+    verification_error_type: _ => choice(...verification_errors),
 
     // types
     type: $ => choice(
@@ -632,20 +671,12 @@ module.exports = grammar({
       $.array_type,
     ),
     array_type: $ => seq('[', $.type),
-    // primitives > identifiers
-    // I don't know why this works, but for primitives in a statement's value,
-    // the first choice is needed, and for primitives in a signature/return type,
-    // the second choice is needed.
-    // TODO: maybe figure out why?
     primitive_type: _ => choice(
       token(choice(...primitives)),
       token(prec(1, choice(...primitives))),
     ),
 
     access_modifiers: $ => repeat1($.access_modifier),
-
-    _method_access_modifiers: $ => repeat1(choice($.access_modifier, 'constructor')),
-
     access_modifier: _ => choice(...access_flags.concat(restriction_flags)),
 
     enum_reference: $ => seq(
@@ -653,12 +684,12 @@ module.exports = grammar({
       choice($._field_body, $._full_field_body),
     ),
 
-    // special builtins
+    // registers
     register: $ => choice($.variable, $.parameter),
-    variable: _ => token.immediate(/v\d+/),
-    parameter: _ => token.immediate(/p\d+/),
+    variable: _ => /v\d+/,
+    parameter: _ => /p\d+/,
 
-    // lists
+    // lists & ranges
     list: $ => seq(
       '{',
       commaSep($.value),
@@ -666,10 +697,10 @@ module.exports = grammar({
     ),
     range: $ => seq(
       '{',
-      choice(
-        seq(field('start', $.register), '..', field('end', $.register)),
-        seq(field('start', $.number), '..', field('end', $.number)),
-        seq(field('start', $.jmp_label), '..', field('end', $.jmp_label)),
+      seq(
+        field('start', choice($.register, $.number, $.jmp_label, $.label)),
+        '..',
+        field('end', choice($.register, $.number, $.jmp_label, $.label)),
       ),
       '}',
     ),
@@ -686,45 +717,49 @@ module.exports = grammar({
       $.null,
     ),
 
-    number: $ => {
-      const hex_literal = seq(
+    number: _ => token(choice(
+      seq(
         optional(choice('-', '+')),
-        /0[xX]/,
-        /[\da-fA-F](_?[\da-fA-F])*/,
-      );
-
-      const decimal_digits = /\d(_?\d)*/;
-      const signed_integer = seq(optional(choice('-', '+')), decimal_digits);
-
-      const decimal_integer_literal = choice(
-        '0',
-        seq(optional('0'), /[1-9]/, optional(seq(optional('_'), decimal_digits))),
-      );
-
-      const decimal_literal = choice(
-        seq(optional('-'), decimal_integer_literal),
-        decimal_digits,
-        signed_integer,
-      );
-
-      return token(seq(
-        choice(hex_literal, decimal_literal),
-        alias(optional(/[LlSsTt]/), $.number_type),
-      ));
-    },
-
-    float: $ => token(seq(
-      /-?(\d+(\.\d+)?|\.\d+)([Ee][+-]?\d+)?/,
-      alias(optional('f'), $.float_type),
+        choice(
+          seq(/0[xX]/, /[0-9a-fA-F](_?[0-9a-fA-F])*/),
+          seq('0', /[0-7](_?[0-7])*/),
+          /[0-9](_?[0-9])*/,
+        ),
+        optional(/[LlSsTt]/),
+      ),
     )),
 
-    // FIXME: adding an optional 'f' doesn't work, I don't know why,
-    // so this approach was used instead
-    NaN: _ => token(prec(1, choice('NaN', 'NaNf'))),
+    float: _ => token(choice(
+      // Decimal floating-point numbers
+      seq(
+        optional(choice('-', '+')),
+        choice(
+          seq(/[0-9]+/, '.', /[0-9]*/, optional(seq(/[eE]/, optional(choice('-', '+')), /[0-9]+/))),
+          seq('.', /[0-9]+/, optional(seq(/[eE]/, optional(choice('-', '+')), /[0-9]+/))),
+          seq(/[0-9]+/, seq(/[eE]/, optional(choice('-', '+')), /[0-9]+/)),
+          seq(/[0-9]+/, /[fFdD]/),
+        ),
+        optional(/[fFdD]/),
+      ),
+      // Hexadecimal floating-point numbers (Binary Exponent)
+      seq(
+        optional(choice('-', '+')),
+        /0[xX]/,
+        choice(
+          seq(/[0-9a-fA-F]+/, optional(seq('.', /[0-9a-fA-F]*/)), seq(/[pP]/, optional(choice('-', '+')), /[0-9]+/)),
+          seq('.', /[0-9a-fA-F]+/, seq(/[pP]/, optional(choice('-', '+')), /[0-9]+/)),
+        ),
+        optional(/[fFdD]/),
+      ),
+    )),
 
-    Infinity: _ => token(prec(1, choice('Infinity', '-Infinity'))),
+    NaN: _ => token(prec(1, /[nN][aA][nN][fFdD]?/)),
 
-    // string: _ => /"[^"\\]*(?:\\.[^"\\]*)*"/,
+    Infinity: _ => token(prec(1, seq(
+      optional(choice('-', '+')),
+      /[iI][nN][fF][iI][nN][iI][tT][yY][fFdD]?/,
+    ))),
+
     string: $ => seq(
       '"',
       repeat(choice(
@@ -734,9 +769,6 @@ module.exports = grammar({
       '"',
     ),
 
-    // Workaround to https://github.com/tree-sitter/tree-sitter/issues/1156
-    // We give names to the token_ constructs containing a regexp
-    // so as to obtain a node in the CST.
     string_fragment: _ => token.immediate(prec(1, /[^"\\]+/)),
 
     _escape_sequence: $ => choice(

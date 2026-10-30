@@ -33,13 +33,28 @@ bool tree_sitter_smali_external_scanner_scan(void *payload, TSLexer *lexer, cons
     }
 
     if (valid_symbols[CLASS_IDENTIFIER]) {
-        // any alnum, stop at /
         lexer->result_symbol = CLASS_IDENTIFIER;
+        bool has_chars = false;
+
+        // Support backtick-quoted class segments, e.g. Lmy/pkg/`Class With Spaces`;
+        if (lexer->lookahead == '`') {
+            advance(lexer);
+            while (lexer->lookahead && lexer->lookahead != '`' && lexer->lookahead != '\n' && lexer->lookahead != '\r') {
+                advance(lexer);
+            }
+            if (lexer->lookahead == '`') {
+                advance(lexer);
+            }
+            return true;
+        }
+
+        // Support standard and unicode identifier characters (> 127)
         while (iswalnum(lexer->lookahead) || lexer->lookahead == '_' || lexer->lookahead == '-' ||
-               lexer->lookahead == '$') {
+               lexer->lookahead == '$' || (unsigned int)lexer->lookahead > 127) {
+            has_chars = true;
             advance(lexer);
         }
-        return true;
+        return has_chars;
     }
 
     return false;

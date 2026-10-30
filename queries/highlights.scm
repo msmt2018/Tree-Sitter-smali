@@ -216,3 +216,14 @@
 ; Errors
 
 (ERROR) @error
+
+; ODEX offsets and table indices
+(inline_index) @constant.builtin
+(vtable_index) @constant.builtin
+(field_offset) @constant.builtin
+
+; Verification error types
+(verification_error_type) @type
+
+; Method modifier addition
+"constructor" @constructor
