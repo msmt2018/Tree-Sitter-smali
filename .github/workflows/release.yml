@@ -4,9 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
-  # 1. 构建各平台的 Node 预编译文件与 C 静态库
+  # 构建各平台的 Node 预编译文件与 C 静态库
   build-native:
     name: Build Native (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -58,7 +59,7 @@ jobs:
             *.tar.gz
             *.zip
 
-  # 2. 构建 WASM 并合并所有发布文件
+  # 构建 WASM 并合并所有发布文件
   publish-release:
     name: Create GitHub Release
     needs: build-native
@@ -75,7 +76,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # 使用 Docker 编译 WASM，免去配置 Emscripten 的烦恼
+      # 使用 Docker 编译 WASM
       - name: Build WASM via Docker
         run: |
           docker run --rm -v ${{ github.workspace }}:/src emscripten/emsdk npx tree-sitter build-wasm
@@ -85,7 +86,7 @@ jobs:
         with:
           path: downloaded-artifacts
 
-      # 整理目录结构以便统一下载
+      # 整理目录结构
       - name: Organize files
         run: |
           mkdir -p dist
@@ -107,9 +108,12 @@ jobs:
           npm pack
           mv *.tgz dist/
 
+      # 创建发布版或更新现有发布版
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          # 如果是手动触发，没有 tag，则默认发布到名为 "draft-release" 的草稿或预发布版本中
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'manual-build' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
