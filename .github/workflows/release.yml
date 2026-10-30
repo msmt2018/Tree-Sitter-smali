@@ -23,7 +23,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm filter-platform-install || npm install
@@ -31,13 +30,14 @@ jobs:
       - name: Build Prebuildify (Node-API)
         run: npx prebuildify --napi --strip
 
-      # 针对不同平台归档 C 静态库
+      # 针对不同平台归档 C 静态库（修复：加入外部扫描器 src/scanner.c 一并编译）
       - name: Build C Static Library (Unix)
         if: matrix.os != 'windows-latest'
         run: |
           mkdir -p c-release/tree_sitter
           gcc -O3 -c -I./src src/parser.c -o parser.o
-          ar rcs c-release/libtree-sitter-smali.a parser.o
+          gcc -O3 -c -I./src src/scanner.c -o scanner.o
+          ar rcs c-release/libtree-sitter-smali.a parser.o scanner.o
           cp src/tree_sitter/parser.h c-release/tree_sitter/
           tar -czvf tree-sitter-smali-${{ matrix.os }}-c-static.tar.gz c-release/
 
@@ -46,7 +46,8 @@ jobs:
         run: |
           mkdir c-release; mkdir c-release/tree_sitter
           cl /O2 /c /I./src src/parser.c /Foparser.obj
-          lib /OUT:c-release/tree-sitter-smali.lib parser.obj
+          cl /O2 /c /I./src src/scanner.c /Foscanner.obj
+          lib /OUT:c-release/tree-sitter-smali.lib parser.obj scanner.obj
           copy src\tree_sitter\parser.h c-release\tree_sitter\
           Compress-Archive -Path c-release/* -DestinationPath tree-sitter-smali-windows-c-static.zip
 
@@ -113,7 +114,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          # 如果是手动触发，没有 tag，则默认发布到名为 "draft-release" 的草稿或预发布版本中
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'manual-build' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
