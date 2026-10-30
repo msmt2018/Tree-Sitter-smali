@@ -1,119 +1,35 @@
-name: Release Artifacts
+name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - master
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
-  # 构建各平台的 Node 预编译文件与 C 静态库
-  build-native:
-    name: Build Native (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm filter-platform-install || npm install
-
-      - name: Build Prebuildify (Node-API)
-        run: npx prebuildify --napi --strip
-
-      # 针对不同平台归档 C 静态库（修复：加入外部扫描器 src/scanner.c 一并编译）
-      - name: Build C Static Library (Unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          mkdir -p c-release/tree_sitter
-          gcc -O3 -c -I./src src/parser.c -o parser.o
-          gcc -O3 -c -I./src src/scanner.c -o scanner.o
-          ar rcs c-release/libtree-sitter-smali.a parser.o scanner.o
-          cp src/tree_sitter/parser.h c-release/tree_sitter/
-          tar -czvf tree-sitter-smali-${{ matrix.os }}-c-static.tar.gz c-release/
-
-      - name: Build C Static Library (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          mkdir c-release; mkdir c-release/tree_sitter
-          cl /O2 /c /I./src src/parser.c /Foparser.obj
-          cl /O2 /c /I./src src/scanner.c /Foscanner.obj
-          lib /OUT:c-release/tree-sitter-smali.lib parser.obj scanner.obj
-          copy src\tree_sitter\parser.h c-release\tree_sitter\
-          Compress-Archive -Path c-release/* -DestinationPath tree-sitter-smali-windows-c-static.zip
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-${{ matrix.os }}
-          path: |
-            prebuilds/
-            *.tar.gz
-            *.zip
-
-  # 构建 WASM 并合并所有发布文件
-  publish-release:
-    name: Create GitHub Release
-    needs: build-native
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: 16
+      - run: npm install
+      - run: npm test
 
-      - name: Install dependencies
-        run: npm install
-
-      # 使用 Docker 编译 WASM
-      - name: Build WASM via Docker
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/src emscripten/emsdk npx tree-sitter build-wasm
-
-      - name: Download all native artifacts
-        uses: actions/download-artifact@v4
+  release:
+    name: release
+    if: ${{ github.ref == 'refs/heads/master' }}
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/release-please-action@v3
+        id: release
         with:
-          path: downloaded-artifacts
-
-      # 整理目录结构
-      - name: Organize files
-        run: |
-          mkdir -p dist
-          cp *.wasm dist/
-          find downloaded-artifacts/ -name "*.tar.gz" -exec cp {} dist/ \;
-          find downloaded-artifacts/ -name "*.zip" -exec cp {} dist/ \;
-          # 合并所有平台的 prebuilds 文件夹
-          mkdir -p prebuilds
-          find downloaded-artifacts/ -path "*/prebuilds/*" -type f | while read file; do
-            rel_path=$(echo "$file" | sed 's|.*/prebuilds/||')
-            mkdir -p "prebuilds/$(dirname "$rel_path")"
-            cp "$file" "prebuilds/$rel_path"
-          done
-          tar -czvf dist/tree-sitter-smali-prebuilds.tar.gz prebuilds/
-
-      # 创建发布版的 npm 离线压缩包
-      - name: Pack NPM Tarball
-        run: |
-          npm pack
-          mv *.tgz dist/
-
-      # 创建发布版或更新现有发布版
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'manual-build' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          release-type: simple
+          package-name: tree-sitter-smali
