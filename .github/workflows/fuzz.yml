@@ -7,16 +7,28 @@ on:
   pull_request:
     paths:
       - src/scanner.c
-  workflow_dispatch:
+  workflow_dispatch: # 支持手动触发
 
 jobs:
-  test:
-    name: Parser fuzzing
+  fuzz:
+    name: Parser Fuzzing (Official)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: vigoux/tree-sitter-fuzz-action@v1
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (For tree-sitter tools)
+        uses: actions/setup-node@v4
         with:
-          language: smali
-          external-scanner: src/scanner.c
-          time: 60
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Tree-sitter CLI
+        run: npm install -g tree-sitter-cli
+
+      - name: Run Fuzz Test
+        run: |
+          npx tree-sitter test
