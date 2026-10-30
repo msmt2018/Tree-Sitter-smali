@@ -1,6 +1,6 @@
-========================================================================
+================================================================================
 Test a simple param
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -10,7 +10,7 @@ Test a simple param
 	.param p1
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -27,18 +27,17 @@ Test a simple param
   (source_directive
     (string))
   (method_definition
-    (access_modifier)
+    (access_modifiers
+      (access_modifier))
     (method_signature
       (method_identifier)
       (primitive_type))
     (param_directive
       (parameter))))
 
-
-
-========================================================================
+================================================================================
 Test a simple param block
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -49,7 +48,7 @@ Test a simple param block
   .end param
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -66,18 +65,17 @@ Test a simple param block
   (source_directive
     (string))
   (method_definition
-    (access_modifier)
+    (access_modifiers
+      (access_modifier))
     (method_signature
       (method_identifier)
       (primitive_type))
     (param_directive
       (parameter))))
 
-
-
-========================================================================
+================================================================================
 Test a param block with an empty annotation
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -90,7 +88,7 @@ Test a param block with an empty annotation
   .end param
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -107,7 +105,8 @@ Test a param block with an empty annotation
   (source_directive
     (string))
   (method_definition
-    (access_modifier)
+    (access_modifiers
+      (access_modifier))
     (method_signature
       (method_identifier)
       (primitive_type))

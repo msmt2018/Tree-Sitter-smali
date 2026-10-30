@@ -1,6 +1,6 @@
-========================================================================
+================================================================================
 Test an empty method
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -9,7 +9,7 @@ Test an empty method
 .method public empty()V
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -26,16 +26,15 @@ Test an empty method
   (source_directive
     (string))
   (method_definition
-    (access_modifier)
+    (access_modifiers
+      (access_modifier))
     (method_signature
       (method_identifier)
       (primitive_type))))
 
-
-
-========================================================================
+================================================================================
 Test a method with no modifiers
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -44,7 +43,7 @@ Test a method with no modifiers
 .method empty()V
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -65,11 +64,9 @@ Test a method with no modifiers
       (method_identifier)
       (primitive_type))))
 
-
-
-========================================================================
+================================================================================
 Test a method with one primitive parameter
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -78,7 +75,7 @@ Test a method with one primitive parameter
 .method public empty(I)V
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -95,18 +92,17 @@ Test a method with one primitive parameter
   (source_directive
     (string))
   (method_definition
-    (access_modifier)
+    (access_modifiers
+      (access_modifier))
     (method_signature
       (method_identifier)
       (parameters
         (primitive_type))
       (primitive_type))))
 
-
-
-========================================================================
+================================================================================
 Test a method with multiple primitive parameter
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -115,7 +111,7 @@ Test a method with multiple primitive parameter
 .method public empty(IZJ)V
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -132,7 +128,8 @@ Test a method with multiple primitive parameter
   (source_directive
     (string))
   (method_definition
-    (access_modifier)
+    (access_modifiers
+      (access_modifier))
     (method_signature
       (method_identifier)
       (parameters
@@ -141,11 +138,9 @@ Test a method with multiple primitive parameter
         (primitive_type))
       (primitive_type))))
 
-
-
-========================================================================
+================================================================================
 Test a method with an object parameter
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -154,7 +149,7 @@ Test a method with an object parameter
 .method public static foo(Ljava/lang/String;)V
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -171,8 +166,9 @@ Test a method with an object parameter
   (source_directive
     (string))
   (method_definition
-    (access_modifier)
-    (access_modifier)
+    (access_modifiers
+      (access_modifier)
+      (access_modifier))
     (method_signature
       (method_identifier)
       (parameters
@@ -182,10 +178,9 @@ Test a method with an object parameter
           (identifier)))
       (primitive_type))))
 
-
-========================================================================
+================================================================================
 Test a method with an array parameter
-========================================================================
+================================================================================
 
 .class public LA/BC;
 .super Ljava/lang/Object;
@@ -194,7 +189,7 @@ Test a method with an array parameter
 .method public static foo([Ljava/lang/String;)V
 .end method
 
----
+--------------------------------------------------------------------------------
 
 (class_definition
   (class_directive
@@ -211,8 +206,9 @@ Test a method with an array parameter
   (source_directive
     (string))
   (method_definition
-    (access_modifier)
-    (access_modifier)
+    (access_modifiers
+      (access_modifier)
+      (access_modifier))
     (method_signature
       (method_identifier)
       (parameters
